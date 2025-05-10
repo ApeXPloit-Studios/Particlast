@@ -40,7 +40,7 @@ local categories = { "solids", "liquids", "gases", "explosives", "special" }
 local elementProps = {
     sand = {type="powder", color={0.76, 0.7, 0.5}, temp=ROOM_TEMP, conductivity=0.3, specific_heat=0.8, density=1.5, friction=0.8},
     ash = {type="powder", color={0.5, 0.5, 0.5}, temp=ROOM_TEMP, conductivity=0.1, specific_heat=0.5, density=0.3, friction=0.6},
-    dirt = {type="powder", color={0.45, 0.3, 0.15}, temp=ROOM_TEMP, conductivity=0.2, specific_heat=0.7, density=1.2, friction=0.7},
+    dirt = {type="powder", color={0.45, 0.3, 0.15}, temp=ROOM_TEMP, conductivity=0.2, specific_heat=0.7, density=1.8, friction=0.7},
     glass = {type="powder", color={0.9, 1, 1}, temp=ROOM_TEMP, conductivity=0.05, specific_heat=0.6, melts_at=1500, density=2.5, friction=0.9},
     wood = {type="solid", color={0.4, 0.25, 0.1}, temp=ROOM_TEMP, conductivity=0.1, specific_heat=0.6, flammable=true, ignition_temp=300, density=0.8, friction=0.7},
     metal = {type="solid", color={0.7, 0.7, 0.75}, temp=ROOM_TEMP, conductivity=0.9, specific_heat=0.4, melts_at=1500, density=7.8, friction=0.6, conducts_electricity=true},
@@ -50,7 +50,7 @@ local elementProps = {
     water = {type="liquid", color={0.3, 0.5, 1}, temp=ROOM_TEMP, conductivity=0.6, specific_heat=1.0, freezes_at=0, evaporates_at=100, density=1.0, viscosity=0.8},
     acid = {type="liquid", color={0.5, 1, 0.3}, temp=ROOM_TEMP, conductivity=0.7, specific_heat=0.9, dissolves=true, density=1.2, viscosity=0.6},
     oil = {type="liquid", color={0.1, 0.1, 0.05}, temp=ROOM_TEMP, conductivity=0.1, specific_heat=0.5, flammable=true, ignition_temp=250, density=0.9, viscosity=1.2},
-    lava = {type="liquid", color={1, 0.4, 0.1}, temp=1200, conductivity=0.8, specific_heat=0.3, burns=true, cools_to="stone", density=3.1, viscosity=1.5},
+    lava = {type="liquid", color={1, 0.6, 0.1}, temp=1200, conductivity=0.8, specific_heat=0.3, burns=true, cools_to="stone", density=3.1, viscosity=1.5, emits_embers=true},
     blood = {type="liquid", color={0.6, 0, 0}, temp=ROOM_TEMP, conductivity=0.5, specific_heat=0.9, density=1.1, viscosity=1.0},
     steam = {type="gas", color={1, 1, 1}, temp=150, conductivity=0.2, specific_heat=0.4, rises=true, condenses_at=100, density=0.6, pressure=1.2},
     smoke = {type="gas", color={0.2, 0.2, 0.2}, temp=200, conductivity=0.1, specific_heat=0.3, rises=true, density=0.4, pressure=1.0},
@@ -98,19 +98,19 @@ function updatePowder(x, y)
     cell.vy = cell.vy + GRAVITY
     
     -- Try to move down
-    if moveIf(x, y, x, y+1, {"air", "liquid"}) then return end
+    if moveIf(x, y, x, y+1, {"air"}) then return end
     
     -- Try to move diagonally down
     local dir = love.math.random() > 0.5 and 1 or -1
-    if moveIf(x, y, x+dir, y+1, {"air", "liquid"}) then return end
-    if moveIf(x, y, x-dir, y+1, {"air", "liquid"}) then return end
+    if moveIf(x, y, x+dir, y+1, {"air"}) then return end
+    if moveIf(x, y, x-dir, y+1, {"air"}) then return end
     
     -- Try to move horizontally if in liquid
     if y < math.floor(height / scale) and grid[x][y+1] and 
        elementProps[grid[x][y+1].type] and 
        elementProps[grid[x][y+1].type].type == "liquid" then
-        if moveIf(x, y, x+dir, y, {"air", "liquid"}) then return end
-        if moveIf(x, y, x-dir, y, {"air", "liquid"}) then return end
+        if moveIf(x, y, x+dir, y, {"air"}) then return end
+        if moveIf(x, y, x-dir, y, {"air"}) then return end
     end
     
     -- Apply friction when on solid ground
@@ -236,17 +236,31 @@ function love.draw()
                 local temp = cell.temp or ROOM_TEMP
                 local temp_factor = math.max(0, math.min(1, (temp - ROOM_TEMP) / 500))
                 
-                -- Special handling for lava
+                -- Special handling for lava and acid
                 if cell.type == "lava" then
                     -- Dynamic lava colors based on temperature
                     local lava_temp = math.max(0, math.min(1, (temp - 800) / 1000))
                     r = 1.0
-                    g = 0.3 + lava_temp * 0.4  -- More yellow at higher temps
+                    g = 0.6 + lava_temp * 0.4  -- More yellow at higher temps
                     b = 0.1 + lava_temp * 0.2
                     
-                    -- Add glow effect
-                    love.graphics.setColor(r, g, b, LAVA_GLOW)
-                    love.graphics.rectangle("fill", (x-1)*scale - 1, (y-1)*scale - 1, scale + 2, scale + 2)
+                    -- Add persistent glow effect
+                    love.graphics.setColor(r, g, b, 0.4)  -- Increased glow intensity
+                    love.graphics.rectangle("fill", (x-1)*scale - 2, (y-1)*scale - 2, scale + 4, scale + 4)
+                    
+                    -- Add embers
+                    if c.emits_embers and love.math.random() < 0.1 then
+                        local ember_x = (x-1)*scale + love.math.random() * scale
+                        local ember_y = (y-1)*scale + love.math.random() * scale
+                        local ember_size = love.math.random() * 2 + 1
+                        local ember_alpha = love.math.random() * 0.5 + 0.5
+                        love.graphics.setColor(1, 0.8, 0.2, ember_alpha)
+                        love.graphics.circle("fill", ember_x, ember_y, ember_size)
+                    end
+                elseif cell.type == "acid" then
+                    -- Add green glow effect for acid
+                    love.graphics.setColor(0.5, 1, 0.3, 0.3)  -- Green glow
+                    love.graphics.rectangle("fill", (x-1)*scale - 2, (y-1)*scale - 2, scale + 4, scale + 4)
                 else
                     r = math.min(1, r + temp_factor * 0.5)
                     g = math.max(0, g - temp_factor * 0.3)
@@ -753,8 +767,17 @@ function moveIf(x1, y1, x2, y2, valid)
     
     -- Check density for non-air moves
     if target.type ~= "air" and target_prop then
-        if not (source_prop.density > target_prop.density) then
-            return false
+        -- Special handling for liquids
+        if source_prop.type == "liquid" and target_prop.type == "liquid" then
+            -- Only allow movement if source density is significantly higher
+            if not (source_prop.density > target_prop.density * 1.1) then
+                return false
+            end
+        else
+            -- Normal density check for other types
+            if not (source_prop.density > target_prop.density) then
+                return false
+            end
         end
     end
     
